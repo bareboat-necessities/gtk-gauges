@@ -1,0 +1,241 @@
+name: build
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  linux-amd64:
+    name: linux (amd64)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute artifact tag
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            echo "ARTIFACT_TAG=${GITHUB_REF_NAME}" >> "$GITHUB_ENV"
+          else
+            echo "ARTIFACT_TAG=sha-${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+          fi
+
+      - name: Install deps (GTK4/gtkmm-4.0)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake ninja-build pkg-config \
+            libgtkmm-4.0-dev
+
+      - name: Configure (release)
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: |
+          cmake --build build -j
+
+      - name: Package
+        run: |
+          set -euo pipefail
+          rm -rf dist
+          mkdir -p dist
+          cp -f build/wind_demo dist/
+          cp -f README.md dist/ || true
+          cp -f LICENSE dist/ || true
+          tar -czf gtk-gauges-${{ env.ARTIFACT_TAG }}-linux-amd64.tar.gz -C dist .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-amd64
+          path: gtk-gauges-${{ env.ARTIFACT_TAG }}-linux-amd64.tar.gz
+
+  linux-arm64:
+    name: linux (arm64)
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute artifact tag
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            echo "ARTIFACT_TAG=${GITHUB_REF_NAME}" >> "$GITHUB_ENV"
+          else
+            echo "ARTIFACT_TAG=sha-${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+          fi
+
+      - name: Install deps (GTK4/gtkmm-4.0)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake ninja-build pkg-config \
+            libgtkmm-4.0-dev
+
+      - name: Configure (release)
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: |
+          cmake --build build -j
+
+      - name: Package
+        run: |
+          set -euo pipefail
+          rm -rf dist
+          mkdir -p dist
+          cp -f build/wind_demo dist/
+          cp -f README.md dist/ || true
+          cp -f LICENSE dist/ || true
+          tar -czf gtk-gauges-${{ env.ARTIFACT_TAG }}-linux-arm64.tar.gz -C dist .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-arm64
+          path: gtk-gauges-${{ env.ARTIFACT_TAG }}-linux-arm64.tar.gz
+
+  windows-x64:
+    name: windows (x64)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up MSYS2 (MINGW64)
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-ninja
+            mingw-w64-x86_64-pkgconf
+            mingw-w64-x86_64-gtkmm-4.0
+            mingw-w64-x86_64-fontconfig
+            mingw-w64-x86_64-gdk-pixbuf2
+            mingw-w64-x86_64-glib2
+            unzip
+            p7zip
+            git
+
+      - name: Compute artifact tag
+        shell: msys2 {0}
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            echo "ARTIFACT_TAG=${GITHUB_REF_NAME}" >> "$GITHUB_ENV"
+          else
+            echo "ARTIFACT_TAG=sha-${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+          fi
+
+      - name: Configure (release)
+        shell: msys2 {0}
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        shell: msys2 {0}
+        run: |
+          cmake --build build -j
+
+      - name: Package portable zip (includes run.bat)
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          rm -rf dist gtk-gauges-${{ env.ARTIFACT_TAG }}-windows-x64.zip
+          mkdir -p dist/share dist/lib dist/etc dist/var/cache dist/home
+
+          cp -f build/wind_demo.exe dist/wind_demo.exe
+          cp -f README.md dist/ || true
+          cp -f LICENSE dist/ || true
+
+          # Copy dependent DLLs for the exe
+          copy_deps () {
+            local bin="$1"
+            [ -f "$bin" ] || return 0
+            ldd "$bin" | awk '{print $3}' | grep -E "^/mingw64/bin/.*\.dll$" | sort -u | while read -r d; do
+              [ -f "$d" ] && cp -f "$d" dist/
+            done
+          }
+          copy_deps build/wind_demo.exe
+
+          # GLib spawn helpers (recommended on Windows)
+          cp -f /mingw64/bin/gspawn-win64-helper.exe dist/ || true
+          cp -f /mingw64/bin/gspawn-win64-helper-console.exe dist/ || true
+
+          # Optional: ship gdbus.exe + deps (helps with some GIO/portal usage)
+          cp -f /mingw64/bin/gdbus.exe dist/ || true
+          copy_deps /mingw64/bin/gdbus.exe
+
+          # GLib schemas (GSettings)
+          mkdir -p dist/share/glib-2.0/schemas
+          cp -r /mingw64/share/glib-2.0/schemas/* dist/share/glib-2.0/schemas/
+          /mingw64/bin/glib-compile-schemas dist/share/glib-2.0/schemas
+
+          # gdk-pixbuf loaders + cache (GTK uses this indirectly in many cases)
+          mkdir -p dist/lib/gdk-pixbuf-2.0/2.10.0/loaders
+          cp -r /mingw64/lib/gdk-pixbuf-2.0/2.10.0/loaders/* dist/lib/gdk-pixbuf-2.0/2.10.0/loaders/
+          /mingw64/bin/gdk-pixbuf-query-loaders > dist/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache
+
+          # Fontconfig config (portable-ish)
+          cp -r /mingw64/etc/fonts dist/etc/
+
+          cat > dist/run.bat <<'EOF'
+          @echo off
+          setlocal
+          set "DIR=%~dp0"
+
+          rem Keep PATH clean so we don't pick up other shells' DLLs/tools.
+          set "PATH=%DIR%;%SystemRoot%\System32;%SystemRoot%"
+
+          rem Per-user writable base
+          set "APPBASE=%LOCALAPPDATA%\gtk-gauges"
+          set "HOME=%APPBASE%"
+          set "XDG_CACHE_HOME=%APPBASE%\cache"
+          set "FC_CACHEDIR=%XDG_CACHE_HOME%\fontconfig"
+          mkdir "%FC_CACHEDIR%" 2>nul
+
+          rem Bundle paths
+          set "FONTCONFIG_FILE=%DIR%etc\fonts\fonts.conf"
+          set "FONTCONFIG_PATH=%DIR%etc\fonts"
+          set "GSETTINGS_SCHEMA_DIR=%DIR%share\glib-2.0\schemas"
+          set "GDK_PIXBUF_MODULE_FILE=%DIR%lib\gdk-pixbuf-2.0\2.10.0\loaders.cache"
+          set "GDK_PIXBUF_MODULEDIR=%DIR%lib\gdk-pixbuf-2.0\2.10.0\loaders"
+          set "PANGOCAIRO_BACKEND=fc"
+
+          "%DIR%wind_demo.exe"
+          endlocal
+          EOF
+
+          7z a gtk-gauges-${{ env.ARTIFACT_TAG }}-windows-x64.zip ./dist/*
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-x64
+          path: gtk-gauges-${{ env.ARTIFACT_TAG }}-windows-x64.zip
+
+  publish:
+    name: publish to GitHub Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [linux-amd64, linux-arm64, windows-x64]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+
+      - name: Publish
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release-assets/linux-amd64/*.tar.gz
+            release-assets/linux-arm64/*.tar.gz
+            release-assets/windows-x64/*.zip
