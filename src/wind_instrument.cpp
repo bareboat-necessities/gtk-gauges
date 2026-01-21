@@ -12,21 +12,30 @@ double WindAngleGauge::clamp_180(double deg) {
 WindAngleGauge::WindAngleGauge() {
   set_title("APP WIND");
   set_unit("AWA");
-
   set_range(-180.0, 180.0);
 
+  apply_geometry_overrides_();
+}
+
+void WindAngleGauge::apply_theme(const CircularGauge::Theme& theme) {
+  CircularGauge::apply_theme(theme);
+  apply_geometry_overrides_();  // re-apply 30°/10° geometry after theme overwrite
+}
+
+void WindAngleGauge::apply_geometry_overrides_() {
   // Full 360° dial:
   // 0° at top (bow), +90° right, -90° left, ±180° bottom (stern).
   style().start_deg = -90.0 - 180.0; // -270
   style().end_deg   = -90.0 + 180.0; // +90
 
-  // Major every 30° across -180..+180 => 13 majors.
-  // Minor every 10° => 2 minors between majors.
+  // Major every 30° across -180..+180 => 13 majors (12 intervals => 360/12=30°).
+  // Minor every 10° => 2 minors between majors (30/(2+1)=10°).
   style().major_ticks = 13;
   style().minor_ticks = 2;
 
-  // Move readout down so it doesn't get covered by the needle.
-  style().value_radius_frac = 0.28;
+  // Lower the AWS readout noticeably so it doesn't get covered by the needle.
+  // (Your previous 0.28 was still close to center.)
+  style().value_radius_frac = 0.48;
 
   style().value_precision = 0;
 }
@@ -42,8 +51,8 @@ double WindAngleGauge::value_to_angle_rad(double v) const {
 }
 
 std::string WindAngleGauge::format_major_label(int /*major_index*/, double major_value) const {
-  int v = static_cast<int>(std::lround(clamp_180(major_value)));
-  if (std::abs(v) == 180) v = 180;
+  // -180, -150, ... 0 ... +150, +180
+  const int v = static_cast<int>(std::lround(clamp_180(major_value)));
   return std::to_string(v);
 }
 
@@ -54,20 +63,34 @@ std::string WindAngleGauge::format_value_readout(double /*v*/) const {
   return std::string(buf);
 }
 
+// ---------------- WindSpeedGauge ----------------
+
 WindSpeedGauge::WindSpeedGauge() {
   set_title("WIND SPD");
   set_unit("kn");
-
   set_range(0.0, 40.0);
 
+  apply_geometry_overrides_();
+}
+
+void WindSpeedGauge::apply_theme(const CircularGauge::Theme& theme) {
+  CircularGauge::apply_theme(theme);
+  apply_geometry_overrides_();
+}
+
+void WindSpeedGauge::apply_geometry_overrides_() {
   style().start_deg = -225.0;
-  style().end_deg   =  45.0;
+  style().end_deg   =   45.0;
+
   style().major_ticks = 9;   // 0..40 step 5
   style().minor_ticks = 4;
   style().value_precision = 1;
 
-  style().value_radius_frac = 0.22;
+  // Slightly below center for speed gauge, but not as low as wind angle readout.
+  style().value_radius_frac = 0.30;
 }
+
+// ---------------- Panel ----------------
 
 WindInstrumentPanel::WindInstrumentPanel()
 : Gtk::Box(Gtk::Orientation::VERTICAL) {
@@ -98,19 +121,22 @@ WindInstrumentPanel::WindInstrumentPanel()
 void WindInstrumentPanel::apply_theme(const SailTheme& t) {
   theme_ = t;
 
+  // These now keep their 30°/10° and readout offsets after theming
   angle_.apply_theme(theme_.gauge);
   speed_.apply_theme(theme_.gauge);
 
   // Zones per request:
-  // - no-go: -20..+20 (NOT red; use amber/orange)
+  // - no-go: -20..+20 (NOT red; "usual" caution color)
   // - port scale: -60..-20 (red)
   // - stbd scale: +20..+60 (green)
+  // - mirrored downwind: red on port side, green on stbd side
   std::vector<CircularGauge::Zone> zones;
-  //zones.push_back({ -20.0,   20.0, theme_.accent_no_go, 0.90 }); // no-go (caution)
-  zones.push_back({ -60.0,  -20.0, theme_.accent_red,   1.0 }); // port scale (red)
-  zones.push_back({  20.0,   60.0, theme_.accent_green, 1.0 }); // stbd scale (green)
-  zones.push_back({-160.0, -120.0, theme_.accent_red,   1.0 }); // port scale (red)
-  zones.push_back({ 120.0,  160.0, theme_.accent_green, 1.0 }); // stbd scale (green)
+  zones.push_back({ -20.0,   20.0, theme_.accent_no_go, 1.0 }); // no-go (caution)
+  zones.push_back({ -60.0,  -20.0, theme_.accent_red,   1.0 }); // port red
+  zones.push_back({  20.0,   60.0, theme_.accent_green, 1.0 }); // stbd green
+
+  zones.push_back({-160.0, -120.0, theme_.accent_red,   1.0 }); // downwind port red
+  zones.push_back({ 120.0,  160.0, theme_.accent_green, 1.0 }); // downwind stbd green
 
   angle_.set_zones(std::move(zones));
   speed_.set_zones({});
