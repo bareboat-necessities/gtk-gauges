@@ -83,8 +83,7 @@ void CircularGauge::set_source_rgba(const Cairo::RefPtr<Cairo::Context>& cr, con
 static void cairo_arc_visual(const Cairo::RefPtr<Cairo::Context>& cr,
                              double cx, double cy, double rad,
                              double a0, double a1) {
-  // We want to draw in the visually "short/forward" direction for a monotone mapping.
-  // Cairo's arc() draws increasing angle. If a1<a0, flip to arc_negative().
+  // Cairo draws increasing angles with arc() and decreasing with arc_negative().
   if (a1 >= a0) cr->arc(cx, cy, rad, a0, a1);
   else         cr->arc_negative(cx, cy, rad, a0, a1);
 }
@@ -92,7 +91,6 @@ static void cairo_arc_visual(const Cairo::RefPtr<Cairo::Context>& cr,
 void CircularGauge::draw_zone_arc(const Cairo::RefPtr<Cairo::Context>& cr,
                                   double cx, double cy, double r, double ring_w,
                                   const Zone& zone) const {
-  // Clamp to current gauge range (for generic gauges)
   double v0 = std::clamp(zone.from_value, min_v_, max_v_);
   double v1 = std::clamp(zone.to_value,   min_v_, max_v_);
 
@@ -134,7 +132,7 @@ void CircularGauge::on_draw_gauge(const Cairo::RefPtr<Cairo::Context>& cr, int w
   cr->arc(cx, cy, r - ring_w * 0.5, 0, 2 * M_PI);
   cr->stroke();
 
-  // Zones (draw under ticks/labels, above ring)
+  // Zones (under ticks/labels, above ring)
   for (const auto& z : zones_) {
     draw_zone_arc(cr, cx, cy, r, ring_w, z);
   }
@@ -167,7 +165,7 @@ void CircularGauge::on_draw_gauge(const Cairo::RefPtr<Cairo::Context>& cr, int w
   // Major labels + ticks
   cr->save();
   set_source_rgba(cr, style_.text);
-  cr->select_font_face(style_.font_family, Cairo::Context::Slant::NORMAL, Cairo::Context::Weight::SEMIBOLD);
+  cr->select_font_face(style_.font_family, Cairo::FontSlant::NORMAL, Cairo::FontWeight::BOLD);
 
   for (int i = 0; i < majors; ++i) {
     const double t = (double)i / (double)(majors - 1);
@@ -202,7 +200,7 @@ void CircularGauge::on_draw_gauge(const Cairo::RefPtr<Cairo::Context>& cr, int w
   // Title + unit
   {
     cr->save();
-    cr->select_font_face(style_.font_family, Cairo::Context::Slant::NORMAL, Cairo::Context::Weight::NORMAL);
+    cr->select_font_face(style_.font_family, Cairo::FontSlant::NORMAL, Cairo::FontWeight::NORMAL);
     cr->set_font_size(std::max(10.0, r * 0.070));
     set_source_rgba(cr, style_.subtext);
 
@@ -222,7 +220,7 @@ void CircularGauge::on_draw_gauge(const Cairo::RefPtr<Cairo::Context>& cr, int w
   // Center value readout
   {
     cr->save();
-    cr->select_font_face(style_.font_family, Cairo::Context::Slant::NORMAL, Cairo::Context::Weight::BOLD);
+    cr->select_font_face(style_.font_family, Cairo::FontSlant::NORMAL, Cairo::FontWeight::BOLD);
     cr->set_font_size(std::max(14.0, r * 0.17));
     set_source_rgba(cr, style_.text);
 
