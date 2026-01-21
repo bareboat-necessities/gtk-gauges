@@ -138,7 +138,7 @@ void WindInstrumentPanel::apply_theme(const SailTheme& t) {
   // - stbd scale: +20..+60 (green)
   // - mirrored downwind: red on port side, green on stbd side
   std::vector<CircularGauge::Zone> zones;
-  zones.push_back({ -20.0,   20.0, theme_.accent_no_go, 1.0 }); // no-go (caution)
+  //zones.push_back({ -20.0,   20.0, theme_.accent_no_go, 1.0 }); // no-go (caution)
   zones.push_back({ -60.0,  -20.0, theme_.accent_red,   1.0 }); // port red
   zones.push_back({  20.0,   60.0, theme_.accent_green, 1.0 }); // stbd green
 
