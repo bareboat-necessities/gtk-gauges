@@ -6,8 +6,11 @@
 struct SailTheme {
   CircularGauge::Theme gauge;
   Gdk::RGBA panel_bg = Gdk::RGBA("#0b0e12");
-  Gdk::RGBA accent_red   = Gdk::RGBA("#ff3b30");
-  Gdk::RGBA accent_green = Gdk::RGBA("#34c759");
+
+  // Zone colors
+  Gdk::RGBA accent_red     = Gdk::RGBA("#ff3b30");
+  Gdk::RGBA accent_green   = Gdk::RGBA("#34c759");
+  Gdk::RGBA accent_no_go   = Gdk::RGBA("#ff9f0a"); // amber/orange (not red)
 };
 
 // Apparent wind angle: -180..+180 (port -, starboard +).

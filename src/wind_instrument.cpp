@@ -36,21 +36,19 @@ void WindAngleGauge::set_angle_deg(double deg) {
 }
 
 double WindAngleGauge::value_to_angle_rad(double v) const {
-  // Direct angle mapping for wind instrument:
-  // angle = -90° + AWA (so 0 is up)
+  // Direct wind mapping: angle = -90° + AWA (so 0 is up)
   const double ang_deg = -90.0 + clamp_180(v);
   return deg_to_rad(ang_deg);
 }
 
 std::string WindAngleGauge::format_major_label(int /*major_index*/, double major_value) const {
-  // Tick labels at -180,-150,...,0,...,150,180
   int v = static_cast<int>(std::lround(clamp_180(major_value)));
   if (std::abs(v) == 180) v = 180;
   return std::to_string(v);
 }
 
 std::string WindAngleGauge::format_value_readout(double /*v*/) const {
-  // User request: show speed (kn) on the wind angle gauge readout.
+  // Show speed (kn) on the wind angle gauge readout.
   char buf[64];
   std::snprintf(buf, sizeof(buf), "%.1f kn", speed_kn_);
   return std::string(buf);
@@ -68,7 +66,6 @@ WindSpeedGauge::WindSpeedGauge() {
   style().minor_ticks = 4;
   style().value_precision = 1;
 
-  // Slightly below center is fine here too.
   style().value_radius_frac = 0.22;
 }
 
@@ -105,16 +102,15 @@ void WindInstrumentPanel::apply_theme(const SailTheme& t) {
   speed_.apply_theme(theme_.gauge);
 
   // Zones per request:
-  // - no-go: -20..+20 (red)
+  // - no-go: -20..+20 (NOT red; use amber/orange)
   // - port scale: -60..-20 (red)
   // - stbd scale: +20..+60 (green)
-  // - same green mirrored around 180°: [120..160] and [-160..-120]
   std::vector<CircularGauge::Zone> zones;
-  zones.push_back({ -20.0,   20.0, theme_.accent_red,   0.95 }); // no-go
-  zones.push_back({ -60.0,  -20.0, theme_.accent_red,   0.70 }); // port scale
-  zones.push_back({  20.0,   60.0, theme_.accent_green, 0.85 }); // stbd scale
-  zones.push_back({ 120.0,  160.0, theme_.accent_green, 0.85 }); // downwind mirrored green
-  zones.push_back({-160.0, -120.0, theme_.accent_green, 0.85 }); // downwind mirrored green
+  //zones.push_back({ -20.0,   20.0, theme_.accent_no_go, 0.90 }); // no-go (caution)
+  zones.push_back({ -60.0,  -20.0, theme_.accent_red,   0.75 }); // port scale (red)
+  zones.push_back({  20.0,   60.0, theme_.accent_green, 0.85 }); // stbd scale (green)
+  zones.push_back({-160.0, -120.0, theme_.accent_red,   0.75 }); // port scale (red)
+  zones.push_back({ 120.0,  160.0, theme_.accent_green, 0.85 }); // stbd scale (green)
 
   angle_.set_zones(std::move(zones));
   speed_.set_zones({});
