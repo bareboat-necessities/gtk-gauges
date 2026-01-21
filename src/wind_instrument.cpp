@@ -107,10 +107,10 @@ void WindInstrumentPanel::apply_theme(const SailTheme& t) {
   // - stbd scale: +20..+60 (green)
   std::vector<CircularGauge::Zone> zones;
   //zones.push_back({ -20.0,   20.0, theme_.accent_no_go, 0.90 }); // no-go (caution)
-  zones.push_back({ -60.0,  -20.0, theme_.accent_red,   0.75 }); // port scale (red)
-  zones.push_back({  20.0,   60.0, theme_.accent_green, 0.85 }); // stbd scale (green)
-  zones.push_back({-160.0, -120.0, theme_.accent_red,   0.75 }); // port scale (red)
-  zones.push_back({ 120.0,  160.0, theme_.accent_green, 0.85 }); // stbd scale (green)
+  zones.push_back({ -60.0,  -20.0, theme_.accent_red,   1.0 }); // port scale (red)
+  zones.push_back({  20.0,   60.0, theme_.accent_green, 1.0 }); // stbd scale (green)
+  zones.push_back({-160.0, -120.0, theme_.accent_red,   1.0 }); // port scale (red)
+  zones.push_back({ 120.0,  160.0, theme_.accent_green, 1.0 }); // stbd scale (green)
 
   angle_.set_zones(std::move(zones));
   speed_.set_zones({});
