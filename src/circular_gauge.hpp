@@ -92,7 +92,7 @@ protected:
   virtual std::string format_value_readout(double v) const;
 
   // Helpers
-  static double deg_to_rad(double d) { return d * M_PI / 180.0; }
+  static double deg_to_rad(double d) { return d * std::numbers::pi / 180.0; }
   static void set_source_rgba(const Cairo::RefPtr<Cairo::Context>& cr, const Gdk::RGBA& c, double alpha_mul = 1.0);
 
   // drawing helpers for zones
