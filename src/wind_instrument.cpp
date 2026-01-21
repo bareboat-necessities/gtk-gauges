@@ -50,9 +50,16 @@ double WindAngleGauge::value_to_angle_rad(double v) const {
   return deg_to_rad(ang_deg);
 }
 
-std::string WindAngleGauge::format_major_label(int /*major_index*/, double major_value) const {
-  // -180, -150, ... 0 ... +150, +180
+std::string WindAngleGauge::format_major_label(int major_index, double major_value) const {
   const int v = static_cast<int>(std::lround(clamp_180(major_value)));
+
+  // Full-circle dials duplicate the endpoint at the same angle.
+  // Drop the FIRST endpoint label (-180) and keep the last (+180).
+  if (major_index == 0 && std::abs(v) == 180) {
+    return std::string{};
+  }
+
+  if (std::abs(v) == 180) return "180";
   return std::to_string(v);
 }
 
@@ -87,7 +94,7 @@ void WindSpeedGauge::apply_geometry_overrides_() {
   style().value_precision = 1;
 
   // Slightly below center for speed gauge, but not as low as wind angle readout.
-  style().value_radius_frac = 0.30;
+  style().value_radius_frac = 0.48;
 }
 
 // ---------------- Panel ----------------

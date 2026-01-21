@@ -212,10 +212,18 @@ void CircularGauge::on_draw_gauge(const Cairo::RefPtr<Cairo::Context>& cr, int w
 
     cr->set_font_size(std::max(10.0, r * 0.085));
     Cairo::TextExtents te;
-    cr->get_text_extents(label, te);
-    cr->move_to(lx - (te.width * 0.5 + te.x_bearing),
-                ly - (te.height * 0.5 + te.y_bearing));
-    cr->show_text(label);
+    if (!label.empty()) {
+      const double lr = r * style_.label_radius_frac;
+      const double lx = cx + std::cos(ang) * lr;
+      const double ly = cy + std::sin(ang) * lr;
+
+      cr->set_font_size(std::max(10.0, r * 0.085));
+      Cairo::TextExtents te;
+      cr->get_text_extents(label, te);
+      cr->move_to(lx - (te.width * 0.5 + te.x_bearing),
+                  ly - (te.height * 0.5 + te.y_bearing));
+      cr->show_text(label);
+    }
   }
   cr->restore();
 
