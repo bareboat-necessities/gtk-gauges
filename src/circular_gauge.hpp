@@ -6,6 +6,7 @@
 #include <vector>
 #include <cmath>
 #include <algorithm>
+#include <numbers>
 
 class CircularGauge : public Gtk::DrawingArea {
 public:
@@ -17,10 +18,9 @@ public:
   };
 
   struct Style {
-    // Scale sweep (degrees). For generic "arc" gauges.
-    // (Specialized gauges may override value_to_angle_rad.)
+    // Scale sweep (degrees). Generic arc gauges map [min..max] onto [start..end].
     double start_deg = -225.0;
-    double end_deg   =  45.0;
+    double end_deg   =   45.0;
 
     int major_ticks = 9;
     int minor_ticks = 4;
@@ -32,7 +32,10 @@ public:
     double tick_len_minor_frac = 0.07;
 
     double label_radius_frac = 0.74;
-    double value_radius_frac = 0.45;
+
+    // Value readout vertical offset from center (in units of radius).
+    // Positive moves down.
+    double value_radius_frac = 0.22;
 
     // Zone arc placement (relative to ring)
     double zone_width_mul = 0.55;   // zone arc width relative to ring width
@@ -54,10 +57,7 @@ public:
 
   struct Theme {
     Style style;
-
-    // Optional per-widget overrides / future extension:
-    // (Kept small and practical, but gives you a single point for LVGL-ish look.)
-    double corner_radius = 0.0; // reserved (if you add framed panels later)
+    double corner_radius = 0.0; // reserved
   };
 
   CircularGauge();

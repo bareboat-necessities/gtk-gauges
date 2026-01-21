@@ -16,6 +16,7 @@ public:
   WindAngleGauge();
 
   void set_angle_deg(double deg); // clamps to [-180, 180]
+  void set_speed_kn(double kn) { speed_kn_ = kn; queue_draw(); }
 
 protected:
   double value_to_angle_rad(double v) const override;
@@ -24,6 +25,7 @@ protected:
 
 private:
   static double clamp_180(double deg);
+  double speed_kn_ = 0.0;
 };
 
 // Wind speed gauge: standard arc gauge

@@ -244,7 +244,7 @@ void CircularGauge::on_draw_gauge(const Cairo::RefPtr<Cairo::Context>& cr, int w
     cr->restore();
   }
 
-  // Center value readout
+  // Value readout (moved below center so the needle doesn't cover it)
   {
     cr->save();
     cr->select_font_face(style_.font_family,
@@ -256,8 +256,10 @@ void CircularGauge::on_draw_gauge(const Cairo::RefPtr<Cairo::Context>& cr, int w
     const std::string vtxt = format_value_readout(value_);
     Cairo::TextExtents te;
     cr->get_text_extents(vtxt, te);
+
     cr->move_to(cx - (te.width * 0.5 + te.x_bearing),
-                cy + r * style_.value_radius_frac * 0.15);
+                cy + r * style_.value_radius_frac);
+
     cr->show_text(vtxt);
     cr->restore();
   }

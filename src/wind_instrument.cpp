@@ -1,12 +1,11 @@
 #include "wind_instrument.hpp"
+
 #include <sstream>
 #include <iomanip>
 #include <cmath>
-
-static double sign0(double x) { return (x < 0) ? -1.0 : 1.0; }
+#include <cstdio>
 
 double WindAngleGauge::clamp_180(double deg) {
-  // Hard clamp for this instrument (user requested -180..+180).
   return std::clamp(deg, -180.0, 180.0);
 }
 
@@ -16,18 +15,19 @@ WindAngleGauge::WindAngleGauge() {
 
   set_range(-180.0, 180.0);
 
-  // We want a full 360° dial, with:
-  //  0° at top (bow), +90° right, -90° left, ±180° at bottom (stern).
-  // Cairo angle: 0 at +x, +90 at +y, so "north/top" is -90.
-  // Map: angle = -90 + value_deg.
-  //
-  // Note: -180 and +180 point to same direction (stern). That's fine for needle.
-  style().start_deg = -90.0 - 180.0;
-  style().end_deg   = -90.0 + 180.0;
+  // Full 360° dial:
+  // 0° at top (bow), +90° right, -90° left, ±180° bottom (stern).
+  style().start_deg = -90.0 - 180.0; // -270
+  style().end_deg   = -90.0 + 180.0; // +90
 
-  // Majors: -180, -135, -90, -45, 0, 45, 90, 135, 180
-  style().major_ticks = 9;
+  // Major every 30° across -180..+180 => 13 majors.
+  // Minor every 10° => 2 minors between majors.
+  style().major_ticks = 13;
   style().minor_ticks = 2;
+
+  // Move readout down so it doesn't get covered by the needle.
+  style().value_radius_frac = 0.28;
+
   style().value_precision = 0;
 }
 
@@ -36,37 +36,40 @@ void WindAngleGauge::set_angle_deg(double deg) {
 }
 
 double WindAngleGauge::value_to_angle_rad(double v) const {
+  // Direct angle mapping for wind instrument:
+  // angle = -90° + AWA (so 0 is up)
   const double ang_deg = -90.0 + clamp_180(v);
   return deg_to_rad(ang_deg);
 }
 
 std::string WindAngleGauge::format_major_label(int /*major_index*/, double major_value) const {
-  // Show signed angles. At ±180 show "180".
-  int v = (int)std::lround(clamp_180(major_value));
+  // Tick labels at -180,-150,...,0,...,150,180
+  int v = static_cast<int>(std::lround(clamp_180(major_value)));
   if (std::abs(v) == 180) v = 180;
-
-  // Compact: no plus sign, keep minus for port.
   return std::to_string(v);
 }
 
-std::string WindAngleGauge::format_value_readout(double v) const {
-  // Show "AWA -23°" style readout, but compact.
-  const int d = (int)std::lround(clamp_180(v));
-  std::ostringstream ss;
-  ss << d << "°";
-  return ss.str();
+std::string WindAngleGauge::format_value_readout(double /*v*/) const {
+  // User request: show speed (kn) on the wind angle gauge readout.
+  char buf[64];
+  std::snprintf(buf, sizeof(buf), "%.1f kn", speed_kn_);
+  return std::string(buf);
 }
 
 WindSpeedGauge::WindSpeedGauge() {
   set_title("WIND SPD");
   set_unit("kn");
+
   set_range(0.0, 40.0);
 
   style().start_deg = -225.0;
   style().end_deg   =  45.0;
-  style().major_ticks = 9; // 0..40 step 5
+  style().major_ticks = 9;   // 0..40 step 5
   style().minor_ticks = 4;
   style().value_precision = 1;
+
+  // Slightly below center is fine here too.
+  style().value_radius_frac = 0.22;
 }
 
 WindInstrumentPanel::WindInstrumentPanel()
@@ -88,56 +91,52 @@ WindInstrumentPanel::WindInstrumentPanel()
   readout_.set_xalign(0.5f);
   readout_.set_margin_top(6);
   readout_.set_margin_bottom(2);
-  readout_.set_markup("<span size='large' weight='bold'>--</span>");
 
   append(*row);
   append(readout_);
 
-  // Default theme
   apply_theme(SailTheme{});
 }
 
 void WindInstrumentPanel::apply_theme(const SailTheme& t) {
   theme_ = t;
 
-  // Apply gauge theme
   angle_.apply_theme(theme_.gauge);
   speed_.apply_theme(theme_.gauge);
 
-  // Add sailing-style zones to AWA:
-  // Red "no-go" near bow: +/- 35°
-  // Green close-hauled window: 35..60° both sides
-  // (You can tweak these numbers to match your boat/polar preferences.)
+  // Zones per request:
+  // - no-go: -20..+20 (red)
+  // - port scale: -60..-20 (red)
+  // - stbd scale: +20..+60 (green)
+  // - same green mirrored around 180°: [120..160] and [-160..-120]
   std::vector<CircularGauge::Zone> zones;
-  zones.push_back({-35.0,  35.0, theme_.accent_red,   0.90});
-  zones.push_back({-60.0, -35.0, theme_.accent_green, 0.85});
-  zones.push_back({ 35.0,  60.0, theme_.accent_green, 0.85});
-  angle_.set_zones(std::move(zones));
+  zones.push_back({ -20.0,   20.0, theme_.accent_red,   0.95 }); // no-go
+  zones.push_back({ -60.0,  -20.0, theme_.accent_red,   0.70 }); // port scale
+  zones.push_back({  20.0,   60.0, theme_.accent_green, 0.85 }); // stbd scale
+  zones.push_back({ 120.0,  160.0, theme_.accent_green, 0.85 }); // downwind mirrored green
+  zones.push_back({-160.0, -120.0, theme_.accent_green, 0.85 }); // downwind mirrored green
 
-  // Optional: speed gauge could also get zones if you want (not requested).
+  angle_.set_zones(std::move(zones));
   speed_.set_zones({});
 
   // Panel background via CSS
   auto css = Gtk::CssProvider::create();
   const auto bg = theme_.panel_bg.to_string(); // rgba(...)
-  css->load_from_data(
-    "window, box { background-color: " + bg + "; }"
-  );
+  css->load_from_data("window, box { background-color: " + bg + "; }");
   Gtk::StyleContext::add_provider_for_display(
-    Gdk::Display::get_default(),
-    css,
-    GTK_STYLE_PROVIDER_PRIORITY_APPLICATION
+      Gdk::Display::get_default(),
+      css,
+      GTK_STYLE_PROVIDER_PRIORITY_APPLICATION
   );
 }
 
 void WindInstrumentPanel::set_wind(double awa_deg, double aws_kn) {
   angle_.set_angle_deg(awa_deg);
+  angle_.set_speed_kn(aws_kn);  // readout on AWA gauge is AWS
   speed_.set_speed_kn(aws_kn);
 
   std::ostringstream ss;
-  ss << std::fixed << std::setprecision(1)
-     << "AWA " << (int)std::lround(std::clamp(awa_deg, -180.0, 180.0)) << "°"
-     << "   |   AWS " << aws_kn << " kn";
-
+  ss << "AWA " << static_cast<int>(std::lround(std::clamp(awa_deg, -180.0, 180.0))) << "°"
+     << "   |   AWS " << std::fixed << std::setprecision(1) << aws_kn << " kn";
   readout_.set_text(ss.str());
 }
