@@ -3,46 +3,57 @@
 #include <iomanip>
 #include <cmath>
 
-static double wrap_360(double deg) {
-  double x = std::fmod(deg, 360.0);
-  if (x < 0) x += 360.0;
-  return x;
+static double sign0(double x) { return (x < 0) ? -1.0 : 1.0; }
+
+double WindAngleGauge::clamp_180(double deg) {
+  // Hard clamp for this instrument (user requested -180..+180).
+  return std::clamp(deg, -180.0, 180.0);
 }
 
 WindAngleGauge::WindAngleGauge() {
   set_title("APP WIND");
-  set_unit("deg");
+  set_unit("AWA");
 
-  set_range(0.0, 360.0);
+  set_range(-180.0, 180.0);
 
-  // Full circle mapping, not an arc sweep.
-  style().start_deg = -90.0; // 0° at North (up). We'll map value accordingly.
-  style().end_deg   = 270.0;
+  // We want a full 360° dial, with:
+  //  0° at top (bow), +90° right, -90° left, ±180° at bottom (stern).
+  // Cairo angle: 0 at +x, +90 at +y, so "north/top" is -90.
+  // Map: angle = -90 + value_deg.
+  //
+  // Note: -180 and +180 point to same direction (stern). That's fine for needle.
+  style().start_deg = -90.0 - 180.0;
+  style().end_deg   = -90.0 + 180.0;
 
-  // 8 compass points: N, NE, E, SE, S, SW, W, NW, N
+  // Majors: -180, -135, -90, -45, 0, 45, 90, 135, 180
   style().major_ticks = 9;
-  style().minor_ticks = 1;
+  style().minor_ticks = 2;
   style().value_precision = 0;
-
-  set_major_labels({"N","NE","E","SE","S","SW","W","NW","N"});
 }
 
 void WindAngleGauge::set_angle_deg(double deg) {
-  set_value(wrap_360(deg));
+  set_value(clamp_180(deg));
 }
 
 double WindAngleGauge::value_to_angle_rad(double v) const {
-  // v is degrees, 0 at North, increasing clockwise.
-  // Screen coords in Cairo: +x right, +y down, angle 0 along +x and increases clockwise? (Cairo uses radians with y down => positive angles go clockwise.)
-  // We want 0° at North (up) => -90° in Cairo.
-  const double ang_deg = -90.0 + v;
+  const double ang_deg = -90.0 + clamp_180(v);
   return deg_to_rad(ang_deg);
 }
 
+std::string WindAngleGauge::format_major_label(int /*major_index*/, double major_value) const {
+  // Show signed angles. At ±180 show "180".
+  int v = (int)std::lround(clamp_180(major_value));
+  if (std::abs(v) == 180) v = 180;
+
+  // Compact: no plus sign, keep minus for port.
+  return std::to_string(v);
+}
+
 std::string WindAngleGauge::format_value_readout(double v) const {
-  // show "123°"
+  // Show "AWA -23°" style readout, but compact.
+  const int d = (int)std::lround(clamp_180(v));
   std::ostringstream ss;
-  ss << (int)std::lround(wrap_360(v)) << "°";
+  ss << d << "°";
   return ss.str();
 }
 
@@ -66,7 +77,6 @@ WindInstrumentPanel::WindInstrumentPanel()
   auto row = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::HORIZONTAL);
   row->set_spacing(12);
 
-  // Make them expand nicely
   angle_.set_hexpand(true);
   angle_.set_vexpand(true);
   speed_.set_hexpand(true);
@@ -82,16 +92,52 @@ WindInstrumentPanel::WindInstrumentPanel()
 
   append(*row);
   append(readout_);
+
+  // Default theme
+  apply_theme(SailTheme{});
 }
 
-void WindInstrumentPanel::set_wind(double angle_deg, double speed_kn) {
-  angle_.set_angle_deg(angle_deg);
-  speed_.set_speed_kn(speed_kn);
+void WindInstrumentPanel::apply_theme(const SailTheme& t) {
+  theme_ = t;
+
+  // Apply gauge theme
+  angle_.apply_theme(theme_.gauge);
+  speed_.apply_theme(theme_.gauge);
+
+  // Add sailing-style zones to AWA:
+  // Red "no-go" near bow: +/- 35°
+  // Green close-hauled window: 35..60° both sides
+  // (You can tweak these numbers to match your boat/polar preferences.)
+  std::vector<CircularGauge::Zone> zones;
+  zones.push_back({-35.0,  35.0, theme_.accent_red,   0.90});
+  zones.push_back({-60.0, -35.0, theme_.accent_green, 0.85});
+  zones.push_back({ 35.0,  60.0, theme_.accent_green, 0.85});
+  angle_.set_zones(std::move(zones));
+
+  // Optional: speed gauge could also get zones if you want (not requested).
+  speed_.set_zones({});
+
+  // Panel background via CSS
+  auto css = Gtk::CssProvider::create();
+  const auto bg = theme_.panel_bg.to_string(); // rgba(...)
+  css->load_from_data(
+    "window, box { background-color: " + bg + "; }"
+  );
+  Gtk::StyleContext::add_provider_for_display(
+    Gdk::Display::get_default(),
+    css,
+    GTK_STYLE_PROVIDER_PRIORITY_APPLICATION
+  );
+}
+
+void WindInstrumentPanel::set_wind(double awa_deg, double aws_kn) {
+  angle_.set_angle_deg(awa_deg);
+  speed_.set_speed_kn(aws_kn);
 
   std::ostringstream ss;
   ss << std::fixed << std::setprecision(1)
-     << "AWA " << (int)std::lround(wrap_360(angle_deg)) << "°"
-     << "   |   AWS " << speed_kn << " kn";
+     << "AWA " << (int)std::lround(std::clamp(awa_deg, -180.0, 180.0)) << "°"
+     << "   |   AWS " << aws_kn << " kn";
 
   readout_.set_text(ss.str());
 }

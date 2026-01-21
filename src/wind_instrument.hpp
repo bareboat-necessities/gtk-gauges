@@ -2,36 +2,48 @@
 
 #include "circular_gauge.hpp"
 
-// Wind angle: 0..360 (compass-style). Needle points to current angle.
-// Major labels overridden to N/E/S/W + diagonals.
+// LVGL-ish theme bundle for the demo
+struct SailTheme {
+  CircularGauge::Theme gauge;
+  Gdk::RGBA panel_bg = Gdk::RGBA("#0b0e12");
+  Gdk::RGBA accent_red   = Gdk::RGBA("#ff3b30");
+  Gdk::RGBA accent_green = Gdk::RGBA("#34c759");
+};
+
+// Apparent wind angle: -180..+180 (port -, starboard +).
 class WindAngleGauge final : public CircularGauge {
 public:
   WindAngleGauge();
 
-  void set_angle_deg(double deg); // wraps to [0, 360)
+  void set_angle_deg(double deg); // clamps to [-180, 180]
 
 protected:
   double value_to_angle_rad(double v) const override;
+  std::string format_major_label(int major_index, double major_value) const override;
   std::string format_value_readout(double v) const override;
+
+private:
+  static double clamp_180(double deg);
 };
 
-// Wind speed in knots: uses base CircularGauge mapping.
+// Wind speed gauge: standard arc gauge
 class WindSpeedGauge final : public CircularGauge {
 public:
   WindSpeedGauge();
   void set_speed_kn(double kn) { set_value(kn); }
 };
 
-// A small composite widget: two gauges + a few textual readouts.
 class WindInstrumentPanel final : public Gtk::Box {
 public:
   WindInstrumentPanel();
 
-  void set_wind(double angle_deg, double speed_kn);
+  void apply_theme(const SailTheme& t);
+  void set_wind(double awa_deg, double aws_kn);
 
 private:
   WindAngleGauge angle_;
   WindSpeedGauge speed_;
 
   Gtk::Label readout_;
+  SailTheme theme_;
 };
