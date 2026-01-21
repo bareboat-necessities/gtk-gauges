@@ -143,7 +143,8 @@ void WindInstrumentPanel::apply_theme(const SailTheme& t) {
 
   //zones.push_back({-160.0, -120.0, theme_.accent_red,   1.0 }); // downwind port red
   //zones.push_back({ 120.0,  160.0, theme_.accent_green, 1.0 }); // downwind stbd green
-  zones.push_back({ 160.0, -160.0, theme_.accent_no_go, 1.0 }); // downwind (caution)
+  zones.push_back({ 160.0,  180.0, theme_.accent_no_go, 1.0 });
+  zones.push_back({-180.0, -160.0, theme_.accent_no_go, 1.0 });
 
   angle_.set_zones(std::move(zones));
   speed_.set_zones({});
